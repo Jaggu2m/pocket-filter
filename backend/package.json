@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-build-assets.mjs",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -15,7 +15,12 @@
     "test:auth": "tsx src/test-auth.ts",
     "test:accounts": "tsx src/test-accounts.ts",
     "test:transactions": "tsx src/test-transactions.ts",
-    "test:statements": "tsx src/test-statements.ts"
+    "test:statements": "tsx src/test-statements.ts",
+    "test:categories": "tsx src/test-categories.ts",
+    "test:categories:integration": "tsx src/test-categories-integration.ts",
+    "test:dashboard": "tsx src/test-dashboard.ts",
+    "test:budget": "tsx src/test-budget.ts",
+    "test:goals": "tsx src/test-goals.ts"
   },
   "keywords": [],
   "author": "",

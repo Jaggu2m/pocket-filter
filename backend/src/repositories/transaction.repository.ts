@@ -14,6 +14,8 @@ export interface Transaction {
   amount: number;
   currency: string;
   category: string;
+  categoryConfidence: number;
+  categorySource: string;
   merchant: string | null;
   description: string | null;
   date: Date;
@@ -32,6 +34,8 @@ export interface CreateTransactionInput {
   amount: number;
   currency?: string;
   category?: string;
+  categoryConfidence?: number;
+  categorySource?: string;
   merchant?: string | null;
   description?: string | null;
   date?: Date;
@@ -47,6 +51,8 @@ export interface UpdateTransactionInput {
   amount?: number;
   currency?: string;
   category?: string;
+  categoryConfidence?: number;
+  categorySource?: string;
   merchant?: string | null;
   description?: string | null;
   date?: Date;
@@ -86,6 +92,8 @@ interface TransactionRow {
   amount: string;
   currency: string;
   category: string;
+  category_confidence: string;
+  category_source: string;
   merchant: string | null;
   description: string | null;
   date: Date;
@@ -109,6 +117,8 @@ function mapRowToTransaction(row: TransactionRow): Transaction {
     amount: parseFloat(row.amount) || 0,
     currency: row.currency,
     category: row.category,
+    categoryConfidence: Number(row.category_confidence),
+    categorySource: row.category_source,
     merchant: row.merchant,
     description: row.description,
     date: row.date,
@@ -129,10 +139,10 @@ export class TransactionRepository {
     const query = `
       INSERT INTO transactions (
         user_id, account_id, to_account_id, type, amount,
-        currency, category, merchant, description, date,
+        currency, category, category_confidence, category_source, merchant, description, date,
         payment_rail, is_recurring, tags
       )
-      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'INR'), COALESCE($7, 'General'), $8, $9, COALESCE($10, CURRENT_TIMESTAMP), $11, COALESCE($12, FALSE), $13::text[])
+      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'INR'), COALESCE($7, 'General'), COALESCE($8, 0::numeric), COALESCE($9, 'manual'), $10, $11, COALESCE($12, CURRENT_TIMESTAMP), $13, COALESCE($14, FALSE), $15::text[])
       RETURNING *;
     `;
 
@@ -144,6 +154,8 @@ export class TransactionRepository {
       input.amount,
       input.currency || 'INR',
       input.category ? input.category.trim() : 'General',
+      input.categoryConfidence ?? 0,
+      input.categorySource ?? 'manual',
       input.merchant ? input.merchant.trim() : null,
       input.description ? input.description.trim() : null,
       input.date || new Date(),
@@ -286,6 +298,16 @@ export class TransactionRepository {
     if (updates.category !== undefined) {
       fields.push(`category = $${paramIndex++}`);
       values.push(updates.category.trim());
+    }
+
+    if (updates.categoryConfidence !== undefined) {
+      fields.push(`category_confidence = $${paramIndex++}`);
+      values.push(updates.categoryConfidence);
+    }
+
+    if (updates.categorySource !== undefined) {
+      fields.push(`category_source = $${paramIndex++}`);
+      values.push(updates.categorySource);
     }
 
     if (updates.merchant !== undefined) {

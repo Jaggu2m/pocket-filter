@@ -42,10 +42,10 @@ flowchart TD
 | **Phase 2** | Financial Account Management *(Optional/Non-mandatory)* | MVP | **Completed** ✅ |
 | **Phase 3** | Transaction Management | MVP | **Completed** ✅ |
 | **Phase 4** | Statement Import & Ingestion | MVP | **Completed** ✅ |
-| **Phase 5** | Smart Categorization | MVP | Backlog |
-| **Phase 6** | Financial Dashboard & Analytics | MVP | Backlog |
-| **Phase 7** | Budget Management | MVP | Backlog |
-| **Phase 8** | Monthly Goals & Goal Funding | MVP | Backlog |
+| **Phase 5** | Smart Categorization | MVP | **Completed** ✅ |
+| **Phase 6** | Financial Dashboard & Analytics | MVP | **Completed** ✅ |
+| **Phase 7** | Budget Management | MVP | **Completed** ✅ |
+| **Phase 8** | Monthly Goals & Goal Funding | MVP | **Completed** ✅ |
 | **Phase 9** | Budget Pace & Recurring Payments | V1 | Backlog |
 | **Phase 10** | Forecasting & Anomaly Detection | V1 | Backlog |
 | **Phase 11** | Yearly Goals & Goal Intelligence | V1 | Backlog |
@@ -169,42 +169,42 @@ flowchart TD
 ---
 
 ### Phase 5 — Smart Categorization
-- [ ] Define category taxonomy
-- [ ] Create categories database table
-- [ ] Merchant string normalization
-- [ ] Keyword matching & MCC mapping
-- [ ] Merchant mapping rules
-- [ ] Category assignment with confidence scoring
-- [ ] User correction override & learned merchant rules
-- [ ] Handle unknown merchants
-- [ ] TF-IDF & LightGBM / ML classifier for ambiguous strings
+- [x] Define category taxonomy
+- [x] Create categories database table
+- [x] Merchant string normalization
+- [x] Keyword matching (MCC mapping reserved until MCC data is ingested)
+- [x] Merchant mapping rules
+- [x] Category assignment with confidence scoring
+- [x] User correction override & learned merchant rules
+- [x] Handle unknown merchants
+- [x] Per-user TF-IDF classifier for ambiguous strings
 
 ---
 
 ### Phase 6 — Financial Dashboard & Analytics
-- [ ] Calculate monthly income, expenses, net savings
-- [ ] Calculate savings rate percentage
-- [ ] Category breakdown & account breakdowns
-- [ ] Spending by day / week / month
-- [ ] Month-over-month comparison & category variance
-- [ ] Largest transactions & top spending categories
+- [x] Calculate monthly income, expenses, net savings
+- [x] Calculate savings rate percentage
+- [x] Category breakdown & account breakdowns
+- [x] Spending by day / week / month
+- [x] Month-over-month comparison & category variance
+- [x] Largest transactions & top spending categories
 
 ---
 
 ### Phase 7 — Budget Management
-- [ ] Monthly budget creation & category limits
-- [ ] Overall spending limit
-- [ ] Budget utilization percentage & remaining budgets
-- [ ] Budget vs. actual spending calculations
-- [ ] Budget APIs & dashboard summary
+- [x] Monthly budget creation & category limits
+- [x] Overall spending limit
+- [x] Budget utilization percentage & remaining budgets
+- [x] Budget vs. actual spending calculations
+- [x] Budget APIs & dashboard summary
 
 ---
 
 ### Phase 8 — Monthly Goals & Goal Funding
-- [ ] Short-term target tracking
-- [ ] Goal funding allocations
-- [ ] Deterministic savings rate calculator
-- [ ] Goal progress visualizations
+- [x] Short-term target tracking
+- [x] Goal funding allocations
+- [x] Deterministic savings rate calculator
+- [x] Goal progress visualizations
 *(MVP Completes Here)*
 
 ---

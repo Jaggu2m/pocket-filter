@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
   currency VARCHAR(10) NOT NULL DEFAULT 'INR',
   category VARCHAR(100) NOT NULL DEFAULT 'General',
+  category_confidence NUMERIC(5, 2) NOT NULL DEFAULT 0,
+  category_source VARCHAR(20) NOT NULL DEFAULT 'manual',
   merchant VARCHAR(150),
   description TEXT,
   date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -66,6 +68,9 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_category ON transactions (user_
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions (account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_to_account_id ON transactions (to_account_id);
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS import_hash VARCHAR(64);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category_confidence NUMERIC(5, 2) NOT NULL DEFAULT 0;
+ALTER TABLE transactions ALTER COLUMN category_confidence TYPE NUMERIC(5, 2) USING category_confidence::NUMERIC(5, 2);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category_source VARCHAR(20) NOT NULL DEFAULT 'manual';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_user_import_hash
   ON transactions (user_id, import_hash) WHERE import_hash IS NOT NULL;
 
@@ -84,3 +89,103 @@ CREATE TABLE IF NOT EXISTS import_batches (
 );
 
 CREATE INDEX IF NOT EXISTS idx_import_batches_user_id ON import_batches (user_id);
+
+-- Phase 5: shared taxonomy and per-user learned merchant mappings
+CREATE TABLE IF NOT EXISTS categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL UNIQUE,
+  kind VARCHAR(20) NOT NULL DEFAULT 'expense' CHECK (kind IN ('income', 'expense', 'transfer', 'system')),
+  icon VARCHAR(50),
+  color VARCHAR(20),
+  is_system BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_merchant_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  normalized_merchant VARCHAR(150) NOT NULL,
+  category VARCHAR(100) NOT NULL REFERENCES categories(name),
+  confidence NUMERIC(5, 2) NOT NULL DEFAULT 1.0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, normalized_merchant)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_merchant_rules_user_id ON user_merchant_rules (user_id);
+
+-- Phase 7: Budget Management
+CREATE TABLE IF NOT EXISTS monthly_budgets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month VARCHAR(7) NOT NULL,
+  overall_limit NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (overall_limit >= 0),
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, month, currency)
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_budgets_user_month ON monthly_budgets (user_id, month);
+
+CREATE TABLE IF NOT EXISTS budget_category_limits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  budget_id UUID NOT NULL REFERENCES monthly_budgets(id) ON DELETE CASCADE,
+  category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  limit_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (limit_amount >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (budget_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_category_limits_budget_id ON budget_category_limits (budget_id);
+CREATE INDEX IF NOT EXISTS idx_budget_category_limits_category_id ON budget_category_limits (category_id);
+
+-- Phase 8: Monthly Goals & Goal Funding
+CREATE TABLE IF NOT EXISTS savings_goals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+  name VARCHAR(120) NOT NULL,
+  target_amount NUMERIC(14, 2) NOT NULL CHECK (target_amount >= 0),
+  target_date DATE NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled', 'archived')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user_id ON savings_goals (user_id);
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user_status ON savings_goals (user_id, status);
+
+CREATE TABLE IF NOT EXISTS goal_contributions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  goal_id UUID NOT NULL REFERENCES savings_goals(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount NUMERIC(14, 2) NOT NULL CHECK (amount > 0),
+  type VARCHAR(20) NOT NULL DEFAULT 'contribution' CHECK (type IN ('contribution', 'reversal')),
+  reversed_contribution_id UUID REFERENCES goal_contributions(id) ON DELETE SET NULL,
+  account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_goal_contributions_goal_id ON goal_contributions (goal_id);
+CREATE INDEX IF NOT EXISTS idx_goal_contributions_user_id ON goal_contributions (user_id);
+
+INSERT INTO categories (name, kind, icon, color) VALUES
+  ('Food & Dining', 'expense', 'utensils', '#F97316'),
+  ('Groceries', 'expense', 'shopping-basket', '#22C55E'),
+  ('Transportation', 'expense', 'car', '#3B82F6'),
+  ('Shopping', 'expense', 'shopping-bag', '#A855F7'),
+  ('Utilities', 'expense', 'bolt', '#EAB308'),
+  ('Health', 'expense', 'heart-pulse', '#EF4444'),
+  ('Entertainment', 'expense', 'film', '#EC4899'),
+  ('Education', 'expense', 'graduation-cap', '#06B6D4'),
+  ('Housing', 'expense', 'house', '#64748B'),
+  ('Insurance', 'expense', 'shield', '#14B8A6'),
+  ('Financial Services', 'expense', 'landmark', '#6366F1'),
+  ('Salary', 'income', 'wallet', '#16A34A'),
+  ('Other Income', 'income', 'circle-plus', '#10B981'),
+  ('Transfer', 'transfer', 'arrow-right-left', '#64748B'),
+  ('General', 'system', 'tag', '#94A3B8')
+ON CONFLICT (name) DO NOTHING;

@@ -14,7 +14,7 @@ export const createTransactionSchema = z
       .toUpperCase()
       .length(3, 'Currency must be a 3-letter code (e.g. INR)')
       .optional(),
-    category: z.string().trim().min(1, 'Category cannot be empty').max(100).default('General'),
+    category: z.string().trim().min(1, 'Category cannot be empty').max(100).optional(),
     merchant: z.string().trim().max(150).optional().nullable(),
     description: z.string().trim().max(1000).optional().nullable(),
     notes: z.string().trim().max(1000).optional().nullable(),

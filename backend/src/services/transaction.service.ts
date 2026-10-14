@@ -10,6 +10,7 @@ import {
 } from '../repositories/transaction.repository.js';
 import { accountRepository } from '../repositories/account.repository.js';
 import { BadRequestError, NotFoundError } from '../errors/app-error.js';
+import { categoryService } from './category.service.js';
 
 export class TransactionService {
   private async verifyAccountOwnership(accountId: string, userId: string): Promise<void> {
@@ -34,6 +35,18 @@ export class TransactionService {
     userId: string,
     data: Omit<CreateTransactionInput, 'userId'>,
   ): Promise<Transaction> {
+    const categorizedData = { ...data };
+    if (data.type === 'transfer' && !data.category) {
+      categorizedData.category = 'Transfer';
+      categorizedData.categoryConfidence = 1;
+      categorizedData.categorySource = 'manual';
+    } else if (!data.category) {
+      const assignment = await categoryService.categorize(userId, data.merchant, data.description);
+      categorizedData.category = assignment.category;
+      categorizedData.categoryConfidence = assignment.confidence;
+      categorizedData.categorySource = assignment.source;
+    }
+
     // 1. Verify account ownership if accounts are specified (accounts are optional)
     if (data.accountId) {
       await this.verifyAccountOwnership(data.accountId, userId);
@@ -53,7 +66,7 @@ export class TransactionService {
     try {
       await client.query('BEGIN');
 
-      const created = await transactionRepository.createTransaction({ ...data, userId }, client);
+      const created = await transactionRepository.createTransaction({ ...categorizedData, userId }, client);
 
       // Sync account balance if account is linked
       if (data.type === 'expense' && data.accountId) {
@@ -105,6 +118,21 @@ export class TransactionService {
       updates.toAccountId !== undefined ? updates.toAccountId : existing.toAccountId;
     const nextType = updates.type !== undefined ? updates.type : existing.type;
     const nextAmount = updates.amount !== undefined ? updates.amount : existing.amount;
+    const categorizedUpdates = { ...updates };
+    if (
+      updates.category === undefined &&
+      (updates.merchant !== undefined || updates.description !== undefined) &&
+      nextType !== 'transfer'
+    ) {
+      const assignment = await categoryService.categorize(
+        userId,
+        updates.merchant !== undefined ? updates.merchant : existing.merchant,
+        updates.description !== undefined ? updates.description : existing.description,
+      );
+      categorizedUpdates.category = assignment.category;
+      categorizedUpdates.categoryConfidence = assignment.confidence;
+      categorizedUpdates.categorySource = assignment.source;
+    }
 
     if (nextAccountId) {
       await this.verifyAccountOwnership(nextAccountId, userId);
@@ -144,7 +172,7 @@ export class TransactionService {
       }
 
       // 3. Update transaction record
-      const updated = await transactionRepository.updateTransaction(id, userId, updates, client);
+      const updated = await transactionRepository.updateTransaction(id, userId, categorizedUpdates, client);
 
       if (!updated) {
         throw new NotFoundError('Transaction not found');

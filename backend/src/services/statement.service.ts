@@ -4,6 +4,7 @@ import { csvStatementParser } from './statement-parsers/csv.parser.js';
 import { pdfStatementParser } from './statement-parsers/pdf.parser.js';
 import { accountRepository } from '../repositories/account.repository.js';
 import { BadRequestError, NotFoundError } from '../errors/app-error.js';
+import { categoryService } from './category.service.js';
 
 export interface PreviewTransactionItem {
   tempId: string;
@@ -154,11 +155,12 @@ export class StatementService {
       for (const item of input.transactions) {
         const description = item.description || item.merchant || 'Imported statement transaction';
         const importHash = this.createImportHash(new Date(item.date), item.amount, item.type, description);
+        const assignment = await categoryService.categorize(userId, item.merchant, description);
         const inserted = await client.query(
           `INSERT INTO transactions (
-            user_id, account_id, type, amount, category, merchant, description, date, payment_rail, import_hash
+            user_id, account_id, type, amount, category, category_confidence, category_source, merchant, description, date, payment_rail, import_hash
           )
-          VALUES ($1, $2, $3, $4, COALESCE($5, 'General'), $6, $7, $8, 'STATEMENT_IMPORT', $9)
+          VALUES ($1, $2, $3, $4, COALESCE($5, 'General'), $6, $7, $8, $9, $10, 'STATEMENT_IMPORT', $11)
           ON CONFLICT DO NOTHING
           RETURNING id`,
           [
@@ -166,7 +168,9 @@ export class StatementService {
             input.accountId || null,
             item.type,
             item.amount,
-            item.category || 'General',
+            item.category || assignment.category,
+            item.category ? 1 : assignment.confidence,
+            item.category ? 'manual' : assignment.source,
             item.merchant || null,
             item.description || null,
             new Date(item.date),

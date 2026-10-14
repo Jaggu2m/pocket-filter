@@ -215,17 +215,17 @@ Bank Statement (PDF / CSV)
 
 ## Phase 5 — Smart Categorization
 **Goal:** Automatically classify transactions into financial taxonomy.
-- [ ] Define category taxonomy (Food & Dining, Utilities, Travel, Shopping, etc.)
-- [ ] Create categories database table
-- [ ] Merchant string normalization (regex & token cleaning)
-- [ ] Keyword matching & MCC mapping
-- [ ] Merchant mapping rules engine
-- [ ] Category assignment with confidence scoring
-- [ ] User category correction override
-- [ ] Store categorization corrections per user
-- [ ] Reapply learned merchant rules
-- [ ] Handle unknown merchants fallback
-- [ ] *(Later/V1)* TF-IDF feature extraction & ML classifier for ambiguous strings
+- [x] Define category taxonomy (Food & Dining, Utilities, Travel, Shopping, etc.)
+- [x] Create categories database table
+- [x] Merchant string normalization (regex & token cleaning)
+- [x] Keyword matching (MCC mapping reserved until MCC data is ingested)
+- [x] Merchant mapping rules engine
+- [x] Category assignment with confidence scoring
+- [x] User category correction override
+- [x] Store categorization corrections per user
+- [x] Reapply learned merchant rules
+- [x] Handle unknown merchants fallback
+- [x] TF-IDF feature extraction & per-user classifier for ambiguous strings
 
 **Deliverable:**
 ```
@@ -236,50 +236,50 @@ Bank Statement (PDF / CSV)
 
 ## Phase 6 — Financial Dashboard & Analytics
 **Goal:** Give users clear visibility into their monthly cash flow and spending distribution.
-- [ ] Calculate monthly income
-- [ ] Calculate monthly expenses
-- [ ] Calculate monthly net savings
-- [ ] Calculate savings rate percentage
-- [ ] Category breakdown calculation
-- [ ] Spending by account
-- [ ] Spending distribution by day / week / month
-- [ ] Month-over-month comparison
-- [ ] Category variance analysis
-- [ ] Historical burn rate analytics
-- [ ] Largest transactions detection
-- [ ] Top spending categories summary
+- [x] Calculate monthly income
+- [x] Calculate monthly expenses
+- [x] Calculate monthly net savings
+- [x] Calculate savings rate percentage
+- [x] Category breakdown calculation
+- [x] Spending by account
+- [x] Spending distribution by day / week / month
+- [x] Month-over-month comparison
+- [x] Category variance analysis
+- [x] Historical burn rate analytics
+- [x] Largest transactions detection
+- [x] Top spending categories summary
 
 ---
 
 ## Phase 7 — Budget Management
 **Goal:** Allow users to define monthly category caps and spending limits.
-- [ ] Create monthly budget
-- [ ] Category budgets configuration
-- [ ] Overall spending limit
-- [ ] Edit budget
-- [ ] Delete budget
-- [ ] Calculate budget utilization percentage
-- [ ] Remaining budget calculations
-- [ ] Budget historical tracking
-- [ ] Budget vs. actual spending calculations
-- [ ] Budget REST APIs
-- [ ] Budget dashboard summary
+- [x] Create monthly budget
+- [x] Category budgets configuration
+- [x] Overall spending limit
+- [x] Edit budget
+- [x] Delete budget
+- [x] Calculate budget utilization percentage
+- [x] Remaining budget calculations
+- [x] Budget historical tracking
+- [x] Budget vs. actual spending calculations
+- [x] Budget REST APIs
+- [x] Budget dashboard summary
 
 ---
 
 ## Phase 8 — Monthly Goals & Goal Funding
 **Goal:** Introduce short-term capital targets and savings allocations.
-- [ ] Create monthly goal
-- [ ] Goal attributes: Name, target amount, target date, priority
-- [ ] Current contribution tracking
-- [ ] Remaining required amount calculation
-- [ ] Goal progress calculation
-- [ ] Add contribution
-- [ ] Remove contribution
-- [ ] Goal funding history audit
-- [ ] Link account balance to goal
-- [ ] Calculate required monthly/weekly savings rate: $M_k = \frac{T_k - A_k}{m_k}$
-- [ ] Goal progress visualization payload
+- [x] Create monthly goal
+- [x] Goal attributes: Name, target amount, target date, priority
+- [x] Current contribution tracking
+- [x] Remaining required amount calculation
+- [x] Goal progress calculation
+- [x] Add contribution
+- [x] Remove contribution
+- [x] Goal funding history audit
+- [x] Link account balance to goal
+- [x] Calculate required monthly/weekly savings rate: $M_k = \frac{T_k - A_k}{m_k}$
+- [x] Goal progress visualization payload
 
 > 🏁 **MILESTONE: MVP COMPLETE (Phases 1–8)**
 

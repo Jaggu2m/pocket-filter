@@ -7,6 +7,8 @@ import {
   updateTransactionSchema,
   transactionQuerySchema,
 } from '../schemas/transaction.schema.js';
+import { categoryController } from '../controllers/category.controller.js';
+import { correctTransactionCategorySchema } from '../schemas/category.schema.js';
 
 const transactionRouter = Router();
 
@@ -25,6 +27,12 @@ transactionRouter.get(
 );
 
 transactionRouter.get('/:id', transactionController.getTransactionById);
+
+transactionRouter.patch(
+  '/:id/category',
+  validateRequest({ body: correctTransactionCategorySchema }),
+  categoryController.correctTransaction,
+);
 
 transactionRouter.patch(
   '/:id',
