@@ -215,6 +215,37 @@ export class AIExplanationService {
       return { anomalies, ai: { aiAvailable: false, model: this.model, explanation: fallbackExplanation, fallbackExplanation, error: error instanceof Error ? error.message : 'Unknown LLM error' } };
     }
   }
+  async explainSimulation(userId: string, result: any) {
+    const fallbackExplanation = `Decision: ${result.decision.status}. ${result.decision.reasons.map((reason: any) => reason.message).join(' ')}`.trim();
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      return { aiAvailable: false, model: null, explanation: fallbackExplanation, fallbackExplanation };
+    }
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0.2,
+          max_tokens: 250,
+          messages: [
+            { role: 'system', content: 'Explain a deterministic financial simulation result. Do not calculate or invent numbers.' },
+            { role: 'user', content: JSON.stringify(result) },
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { aiAvailable: false, model: this.model, explanation: fallbackExplanation, fallbackExplanation, error: `LLM request failed: ${response.status} ${errorText}` };
+      }
+      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const explanation = data.choices?.[0]?.message?.content?.trim() || fallbackExplanation;
+      return { aiAvailable: true, model: this.model, explanation, fallbackExplanation };
+    } catch (error) {
+      return { aiAvailable: false, model: this.model, explanation: fallbackExplanation, fallbackExplanation, error: error instanceof Error ? error.message : 'Unknown LLM error' };
+    }
+  }
 }
 
 export const aiExplanationService = new AIExplanationService();

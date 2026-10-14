@@ -23,7 +23,9 @@
     "test:goals": "tsx src/test-goals.ts",
     "test:phase9": "tsx src/test-phase9.ts",
     "test:phase10": "tsx src/test-phase10.ts",
-    "test:phase11": "tsx src/test-phase11.ts"
+    "test:phase11": "tsx src/test-phase11.ts",
+    "test:phase12": "tsx src/test-phase12.ts",
+    "test:phase13": "tsx src/test-phase13.ts"
   },
   "keywords": [],
   "author": "",

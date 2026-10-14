@@ -14,6 +14,7 @@ import recurringPaymentRouter from './routes/recurring-payment.routes.js';
 import aiRouter from './routes/ai.routes.js';
 import forecastRouter from './routes/forecast.routes.js';
 import anomalyRouter from './routes/anomaly.routes.js';
+import simulationRouter from './routes/simulation.routes.js';
 import { requestLogger } from './middlewares/logger.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 
@@ -53,6 +54,13 @@ app.use('/api/v1/forecast', forecastRouter);
 app.use('/api/anomalies', anomalyRouter);
 app.use('/api/anomaly', anomalyRouter);
 app.use('/api/v1/anomalies', anomalyRouter);
+app.use('/api/simulations', simulationRouter);
+app.use('/api/simulation', simulationRouter);
+app.use('/api/simulate', simulationRouter);
+app.use('/api/what-if', simulationRouter);
+app.use('/api/scenarios', simulationRouter);
+app.use('/api/v1/simulations', simulationRouter);
+app.use('/api/v1/simulate', simulationRouter);
 
 // 404 Route Handler
 app.use((req: Request, res: Response) => {

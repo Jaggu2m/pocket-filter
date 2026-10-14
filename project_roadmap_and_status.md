@@ -49,8 +49,8 @@ flowchart TD
 | **Phase 9** | Budget Pace & Recurring Payments | V1 | **Completed** ✅ |
 | **Phase 10** | Forecasting & Anomaly Detection | V1 | **Completed** ✅ |
 | **Phase 11** | Yearly Goals & Goal Intelligence | V1 | **Completed** ✅ |
-| **Phase 12** | Goal-Aware Spending Engine | V1 | Backlog |
-| **Phase 13** | What-If Simulator | V1 | Backlog |
+| **Phase 12** | Goal-Aware Spending Engine | V1 | **Completed** ✅ |
+| **Phase 13** | What-If Simulator | V1 | **Completed** ✅ |
 | **Phase 14** | React Native Mobile Application | V2 | Backlog |
 | **Phase 15** | Long-Term Bucket List Goals | V2 | Backlog |
 | **Phase 16** | AI Finance Copilot (Conversational) | V2 | Backlog |
@@ -213,8 +213,8 @@ flowchart TD
 - [ ] **Phase 9:** Budget Pace Velocity ($V_{\text{ideal}}$, $\Delta V$) & Recurring Payments Detection
 - [ ] **Phase 10:** Month-End Forecasting & Anomaly Outlier Detection
 - [ ] **Phase 11:** Yearly Goals, Dynamic Goal Health (🟢/🟡/🔴), & Waterfall Prioritization
-- [ ] **Phase 12:** Goal-Aware Spending Engine (Connecting overspends to completion delays)
-- [ ] **Phase 13:** What-If Simulator & Pre-purchase Decision Engine
+- [x] **Phase 12:** Goal-Aware Spending Engine (Connecting overspends to completion delays)
+- [x] **Phase 13:** What-If Simulator & Pre-purchase Decision Engine
 
 ---
 

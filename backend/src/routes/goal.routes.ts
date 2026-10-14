@@ -18,9 +18,11 @@ goalRouter.get('/', goalController.listGoals);
 goalRouter.post('/', validateRequest({ body: createGoalSchema }), goalController.createGoal);
 
 goalRouter.get('/funding-plan', goalController.getFundingPlan);
+goalRouter.get('/impact', goalController.getGoalImpacts);
 goalRouter.get('/health', goalController.listGoalHealth);
 
 goalRouter.get('/:id/health', validateRequest({ params: uuidParamSchema }), goalController.getGoalHealth);
+goalRouter.get('/:id/impact', validateRequest({ params: uuidParamSchema }), goalController.getGoalImpact);
 goalRouter.get('/:id', validateRequest({ params: uuidParamSchema }), goalController.getGoal);
 goalRouter.patch('/:id', validateRequest({ params: uuidParamSchema, body: updateGoalSchema }), goalController.updateGoal);
 goalRouter.delete('/:id', validateRequest({ params: uuidParamSchema }), goalController.deleteGoal);

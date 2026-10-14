@@ -363,13 +363,13 @@ Bank Statement (PDF / CSV)
 
 ## Phase 13 — What-If Simulator & Goal Impact Analysis
 **Goal:** Allow users to simulate prospective purchases before spending money.
-- [ ] Simulation REST API
-- [ ] Accept hypothetical purchase payload `{ amount, category, date }`
-- [ ] Fork temporary in-memory financial state (non-persistent)
-- [ ] Evaluate available liquid balance vs. enforced emergency reserve cap
-- [ ] Recalculate projected net savings and goal allocations
-- [ ] Compute before vs. after timeline impact across all active goals
-- [ ] Identify schedule delays per goal (e.g., Kashmir Trip: July 2027 → Sept 2027)
+- [x] Simulation REST API
+- [x] Accept hypothetical purchase payload `{ amount, category, date }`
+- [x] Fork temporary in-memory financial state (non-persistent)
+- [x] Evaluate available liquid balance vs. enforced emergency reserve cap
+- [x] Recalculate projected net savings and goal allocations
+- [x] Compute before vs. after timeline impact across all active goals
+- [x] Identify schedule delays per goal (e.g., Kashmir Trip: July 2027 → Sept 2027)
 - [ ] Return comparative timeline diff without modifying production records
 
 > 🚀 **MILESTONE: VERSION 1.0 (V1) COMPLETE (Phases 9–13)**

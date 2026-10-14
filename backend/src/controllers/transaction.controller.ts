@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { transactionService } from '../services/transaction.service.js';
+import { goalImpactService } from '../services/goal-impact.service.js';
 import { sendSuccess } from '../utils/response.js';
 import { UnauthorizedError } from '../errors/app-error.js';
 import type { TransactionFilterOptions } from '../repositories/transaction.repository.js';
@@ -12,7 +13,19 @@ export class TransactionController {
       }
 
       const transaction = await transactionService.createTransaction(req.user.userId, req.body);
-      sendSuccess(res, { transaction }, 'Transaction created successfully', 201);
+      let goalImpacts: any[] = [];
+      if (transaction.type === 'expense') {
+        try {
+          goalImpacts = await goalImpactService.calculateImpactsForTransaction(
+            req.user.userId,
+            transaction.amount,
+            transaction.date,
+          );
+        } catch (_error) {
+          goalImpacts = [];
+        }
+      }
+      sendSuccess(res, { transaction, goalImpacts }, 'Transaction created successfully', 201);
     } catch (error) {
       next(error);
     }

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { goalService } from '../services/goal.service.js';
+import { goalImpactService } from '../services/goal-impact.service.js';
 import { sendSuccess } from '../utils/response.js';
 import { UnauthorizedError, BadRequestError } from '../errors/app-error.js';
 
@@ -104,6 +105,36 @@ export class GoalController {
       }
       const plan = await goalService.getFundingPlan(req.user.userId, availableSurplus, req.query.month as string | undefined);
       sendSuccess(res, { fundingPlan: plan, funding_plan: plan, plan }, 'Goal funding plan retrieved successfully');
+    } catch (error) { next(error); }
+  }
+
+  async getGoalImpacts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const amount = req.query.amount !== undefined ? Number(req.query.amount) : 0;
+      if (Number.isNaN(amount)) throw new BadRequestError('amount must be a number');
+      const impacts = await goalImpactService.calculateImpacts(
+        req.user.userId,
+        amount,
+        req.query.month as string | undefined,
+      );
+      sendSuccess(res, { goalImpacts: impacts, impacts }, 'Goal impact retrieved successfully');
+    } catch (error) { next(error); }
+  }
+
+  async getGoalImpact(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const amount = req.query.amount !== undefined ? Number(req.query.amount) : 0;
+      if (Number.isNaN(amount)) throw new BadRequestError('amount must be a number');
+      const impacts = await goalImpactService.calculateImpacts(
+        req.user.userId,
+        amount,
+        req.query.month as string | undefined,
+      );
+      const impact = impacts.find((item: any) => item.goalId === id) || null;
+      sendSuccess(res, { impact, goalImpact: impact, impacts }, 'Goal impact retrieved successfully');
     } catch (error) { next(error); }
   }
 
