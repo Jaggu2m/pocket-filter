@@ -156,6 +156,9 @@ CREATE TABLE IF NOT EXISTS savings_goals (
 
 CREATE INDEX IF NOT EXISTS idx_savings_goals_user_id ON savings_goals (user_id);
 CREATE INDEX IF NOT EXISTS idx_savings_goals_user_status ON savings_goals (user_id, status);
+ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE savings_goals ADD COLUMN IF NOT EXISTS goal_type VARCHAR(50) NOT NULL DEFAULT 'SAVINGS';
+CREATE INDEX IF NOT EXISTS idx_savings_goals_user_priority ON savings_goals (user_id, priority);
 
 CREATE TABLE IF NOT EXISTS goal_contributions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -171,6 +174,29 @@ CREATE TABLE IF NOT EXISTS goal_contributions (
 
 CREATE INDEX IF NOT EXISTS idx_goal_contributions_goal_id ON goal_contributions (goal_id);
 CREATE INDEX IF NOT EXISTS idx_goal_contributions_user_id ON goal_contributions (user_id);
+
+-- Phase 9: Recurring Payment Detection
+CREATE TABLE IF NOT EXISTS recurring_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  merchant_name VARCHAR(255) NOT NULL,
+  merchant_normalized VARCHAR(255) NOT NULL,
+  category VARCHAR(100),
+  frequency VARCHAR(20) NOT NULL CHECK (frequency IN ('WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY', 'CUSTOM')),
+  average_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  median_amount NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  last_payment_date DATE NOT NULL,
+  next_expected_date DATE,
+  confidence_score NUMERIC(5, 4) NOT NULL DEFAULT 0,
+  transaction_count INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'DETECTED' CHECK (status IN ('DETECTED', 'CONFIRMED', 'DISMISSED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, merchant_normalized, frequency)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_payments_user_id ON recurring_payments (user_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_payments_user_status ON recurring_payments (user_id, status);
 
 INSERT INTO categories (name, kind, icon, color) VALUES
   ('Food & Dining', 'expense', 'utensils', '#F97316'),

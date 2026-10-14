@@ -8,6 +8,8 @@ export const createGoalSchema = z.object({
   targetDate: dateSchema,
   accountId: z.string().uuid().nullable().optional(),
   status: z.enum(['active', 'completed', 'cancelled', 'archived']).optional(),
+  priority: z.coerce.number().int().min(1).optional(),
+  goalType: z.string().trim().min(1).max(50).optional(),
 });
 
 export const updateGoalSchema = z.object({
@@ -16,6 +18,8 @@ export const updateGoalSchema = z.object({
   targetDate: dateSchema.optional(),
   status: z.enum(['active', 'completed', 'cancelled', 'archived']).optional(),
   accountId: z.string().uuid().nullable().optional(),
+  priority: z.coerce.number().int().min(1).optional(),
+  goalType: z.string().trim().min(1).max(50).optional(),
 });
 
 export const contributionSchema = z.object({

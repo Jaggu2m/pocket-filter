@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { goalService } from '../services/goal.service.js';
 import { sendSuccess } from '../utils/response.js';
-import { UnauthorizedError } from '../errors/app-error.js';
+import { UnauthorizedError, BadRequestError } from '../errors/app-error.js';
 
 export class GoalController {
   async createGoal(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -74,6 +74,36 @@ export class GoalController {
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const contributions = await goalService.listContributions(id, req.user.userId);
       sendSuccess(res, { contributions }, 'Contributions retrieved successfully');
+    } catch (error) { next(error); }
+  }
+
+  async getGoalHealth(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const health = await goalService.getGoalHealth(id, req.user.userId, req.query.month as string | undefined);
+      const goal = await goalService.getGoal(id, req.user.userId);
+      sendSuccess(res, { goal, health, goalHealth: health }, 'Goal health retrieved successfully');
+    } catch (error) { next(error); }
+  }
+
+  async listGoalHealth(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const health = await goalService.listGoalHealth(req.user.userId, req.query.month as string | undefined);
+      sendSuccess(res, { health, goalHealth: health }, 'Goal health retrieved successfully');
+    } catch (error) { next(error); }
+  }
+
+  async getFundingPlan(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const availableSurplus = req.query.availableSurplus !== undefined ? Number(req.query.availableSurplus) : undefined;
+      if (availableSurplus !== undefined && Number.isNaN(availableSurplus)) {
+        throw new BadRequestError('availableSurplus must be a number');
+      }
+      const plan = await goalService.getFundingPlan(req.user.userId, availableSurplus, req.query.month as string | undefined);
+      sendSuccess(res, { fundingPlan: plan, funding_plan: plan, plan }, 'Goal funding plan retrieved successfully');
     } catch (error) { next(error); }
   }
 

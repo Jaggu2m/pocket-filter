@@ -2,6 +2,8 @@ import type { PoolClient } from 'pg';
 import { pool } from '../config/database.js';
 import { goalRepository } from '../repositories/goal.repository.js';
 import { goalCalculationService } from './goal-calculation.service.js';
+import { goalHealthService } from './goal-health.service.js';
+import { waterfallAllocationStrategy } from './goal-waterfall.service.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../errors/app-error.js';
 
 export class GoalService {
@@ -37,6 +39,13 @@ export class GoalService {
     }
     const targetDate = this.validateDate(data.targetDate);
 
+    if (data.priority !== undefined && (typeof data.priority !== 'number' || data.priority < 1)) {
+      throw new BadRequestError('priority must be a positive integer');
+    }
+    if (data.goalType !== undefined && (typeof data.goalType !== 'string' || !data.goalType.trim())) {
+      throw new BadRequestError('goalType must be a non-empty string');
+    }
+
     let accountId: string | null = null;
     if (data.accountId) {
       const owned = await goalRepository.accountExistsAndOwned(data.accountId, userId);
@@ -52,6 +61,8 @@ export class GoalService {
           name: data.name.trim(),
           targetAmount: data.targetAmount,
           targetDate,
+          priority: data.priority,
+          goalType: data.goalType,
         },
         client,
       );
@@ -111,6 +122,14 @@ export class GoalService {
         updates.accountId = data.accountId;
       }
     }
+    if (data.priority !== undefined) {
+      if (typeof data.priority !== 'number' || data.priority < 1) throw new BadRequestError('priority must be a positive integer');
+      updates.priority = data.priority;
+    }
+    if (data.goalType !== undefined) {
+      if (typeof data.goalType !== 'string' || !data.goalType.trim()) throw new BadRequestError('goalType must be a non-empty string');
+      updates.goalType = data.goalType.trim();
+    }
 
     const updated = await this.withTransaction(async (client) => {
       return goalRepository.updateGoal(id, userId, updates, client);
@@ -120,6 +139,105 @@ export class GoalService {
     const savedAmount = await goalRepository.getSavedAmount(id);
     await this.syncStatus(id, userId, updated.targetAmount, savedAmount);
     return goalRepository.findGoalById(id, userId);
+  }
+
+  async getGoalHealth(id: string, userId: string, month?: string) {
+    const goal = await goalRepository.findGoalById(id, userId);
+    if (!goal) throw new NotFoundError('Goal not found');
+    const availableMonthlyCapacity = await goalHealthService.calculateAvailableMonthlyCapacity(userId, month);
+    return goalHealthService.calculate({
+      goalId: goal.id,
+      targetAmount: goal.targetAmount,
+      savedAmount: goal.savedAmount,
+      createdAt: goal.createdAt,
+      targetDate: goal.targetDate,
+      availableMonthlyCapacity,
+    });
+  }
+
+  async listGoalHealth(userId: string, month?: string) {
+    const goals = await goalRepository.listGoals(userId);
+    const availableMonthlyCapacity = await goalHealthService.calculateAvailableMonthlyCapacity(userId, month);
+    const healthResults = [];
+    for (const goal of goals) {
+      if (goal.status === 'cancelled' || goal.status === 'archived') continue;
+      healthResults.push(
+        goalHealthService.calculate({
+          goalId: goal.id,
+          targetAmount: goal.targetAmount,
+          savedAmount: goal.savedAmount,
+          createdAt: goal.createdAt,
+          targetDate: goal.targetDate,
+          availableMonthlyCapacity,
+        }),
+      );
+    }
+    return healthResults;
+  }
+
+  async getFundingPlan(userId: string, availableSurplus?: number, month?: string) {
+    const goals = await goalRepository.listGoals(userId, 'active');
+    const available = availableSurplus !== undefined
+      ? availableSurplus
+      : await goalHealthService.calculateAvailableMonthlyCapacity(userId, month);
+
+    const requirements = goals
+      .filter((goal) => goal.targetAmount - goal.savedAmount > 0)
+      .map((goal) => {
+        const health = goalHealthService.calculate({
+          goalId: goal.id,
+          targetAmount: goal.targetAmount,
+          savedAmount: goal.savedAmount,
+          createdAt: goal.createdAt,
+          targetDate: goal.targetDate,
+          availableMonthlyCapacity: 0,
+        });
+        return {
+          goal,
+          requiredAmount: health.requiredMonthlySaving,
+        };
+      })
+      .filter((item) => item.requiredAmount > 0)
+      .map((item) => ({
+        goalId: item.goal.id,
+        goalName: item.goal.name,
+        priority: item.goal.priority,
+        requiredAmount: item.requiredAmount,
+      }));
+
+    const allocations = waterfallAllocationStrategy.allocate(available, requirements);
+
+    const goalMap = new Map(goals.map((goal) => [goal.id, goal]));
+    const enrichedAllocations = allocations.map((allocation) => {
+      const goal = goalMap.get(allocation.goalId);
+      const required = allocation.requiredAmount;
+      const dedicatedHealth = goal
+        ? goalHealthService.calculate({
+            goalId: goal.id,
+            targetAmount: goal.targetAmount,
+            savedAmount: goal.savedAmount,
+            createdAt: goal.createdAt,
+            targetDate: goal.targetDate,
+            availableMonthlyCapacity: allocation.allocatedAmount,
+          })
+        : null;
+      return {
+        ...allocation,
+        targetAmount: goal?.targetAmount ?? 0,
+        savedAmount: goal?.savedAmount ?? 0,
+        remainingAmount: goal ? Math.max(0, goal.targetAmount - goal.savedAmount) : 0,
+        health: dedicatedHealth,
+      };
+    });
+
+    return {
+      availableSurplus: Number(available.toFixed(2)),
+      month: month || new Date().toISOString().slice(0, 7),
+      allocations: enrichedAllocations,
+      totalRequired: Number(requirements.reduce((sum, item) => sum + item.requiredAmount, 0).toFixed(2)),
+      totalAllocated: Number(enrichedAllocations.reduce((sum, item) => sum + item.allocatedAmount, 0).toFixed(2)),
+      totalShortfall: Number(enrichedAllocations.reduce((sum, item) => sum + item.shortfall, 0).toFixed(2)),
+    };
   }
 
   async deleteGoal(id: string, userId: string) {

@@ -20,7 +20,10 @@
     "test:categories:integration": "tsx src/test-categories-integration.ts",
     "test:dashboard": "tsx src/test-dashboard.ts",
     "test:budget": "tsx src/test-budget.ts",
-    "test:goals": "tsx src/test-goals.ts"
+    "test:goals": "tsx src/test-goals.ts",
+    "test:phase9": "tsx src/test-phase9.ts",
+    "test:phase10": "tsx src/test-phase10.ts",
+    "test:phase11": "tsx src/test-phase11.ts"
   },
   "keywords": [],
   "author": "",

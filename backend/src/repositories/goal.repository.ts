@@ -11,6 +11,8 @@ export interface GoalRecord {
   targetAmount: number;
   targetDate: Date;
   status: string;
+  priority: number;
+  goalType: string;
   createdAt: Date;
   updatedAt: Date;
   savedAmount: number;
@@ -39,6 +41,8 @@ interface GoalRow {
   target_amount: string;
   target_date: Date | string;
   status: string;
+  priority: number;
+  goal_type: string;
   created_at: Date;
   updated_at: Date;
   saved_amount?: string;
@@ -68,6 +72,8 @@ function mapGoal(row: GoalRow): GoalRecord {
     targetAmount: parseFloat(row.target_amount) || 0,
     targetDate: new Date(row.target_date),
     status: row.status,
+    priority: Number(row.priority) || 1,
+    goalType: row.goal_type || 'SAVINGS',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     savedAmount: row.saved_amount !== undefined ? (parseFloat(row.saved_amount) || 0) : 0,
@@ -129,12 +135,14 @@ export class GoalRepository {
     name: string;
     targetAmount: number;
     targetDate: string;
+    priority?: number;
+    goalType?: string;
   }, client: PoolClient): Promise<GoalRecord> {
     const result = await client.query<GoalRow>(
-      `INSERT INTO savings_goals (user_id, account_id, name, target_amount, target_date)
-       VALUES ($1, $2, $3, $4, $5::date)
+      `INSERT INTO savings_goals (user_id, account_id, name, target_amount, target_date, priority, goal_type)
+       VALUES ($1, $2, $3, $4, $5::date, $6, $7)
        RETURNING *`,
-      [input.userId, input.accountId || null, input.name, input.targetAmount, input.targetDate],
+      [input.userId, input.accountId || null, input.name, input.targetAmount, input.targetDate, input.priority || 1, input.goalType || 'SAVINGS'],
     );
     // reload with account name/balance
     const reload = await client.query<GoalRow>(
@@ -154,6 +162,8 @@ export class GoalRepository {
     targetDate?: string;
     status?: string;
     accountId?: string | null;
+    priority?: number;
+    goalType?: string;
   }, client: PoolClient): Promise<GoalRecord | null> {
     const fields: string[] = [];
     const values: unknown[] = [];
@@ -178,6 +188,14 @@ export class GoalRepository {
     if (updates.accountId !== undefined) {
       fields.push(`account_id = $${paramIndex++}`);
       values.push(updates.accountId || null);
+    }
+    if (updates.priority !== undefined) {
+      fields.push(`priority = $${paramIndex++}`);
+      values.push(updates.priority);
+    }
+    if (updates.goalType !== undefined) {
+      fields.push(`goal_type = $${paramIndex++}`);
+      values.push(updates.goalType);
     }
     if (fields.length === 0) {
       return this.findGoalById(id, userId, client);
