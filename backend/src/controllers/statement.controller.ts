@@ -10,15 +10,25 @@ export class StatementController {
         throw new UnauthorizedError();
       }
 
-      if (!req.file) {
-        throw new BadRequestError('Statement file is required (Upload as field "file")');
+      let fileBuffer: Buffer | null = req.file?.buffer || null;
+      let originalName = req.file?.originalname || req.body?.fileName || 'statement.pdf';
+
+      if (!fileBuffer && req.body?.base64) {
+        const rawBase64 = typeof req.body.base64 === 'string'
+          ? req.body.base64.replace(/^data:[^;]+;base64,/, '')
+          : '';
+        fileBuffer = Buffer.from(rawBase64, 'base64');
       }
 
-      const accountId = req.body.accountId || (req.query.accountId as string | undefined);
+      if (!fileBuffer || fileBuffer.length === 0) {
+        throw new BadRequestError('Statement file is required (Upload as multipart "file" or JSON "base64")');
+      }
+
+      const accountId = req.body?.accountId || (req.query?.accountId as string | undefined);
       const result = await statementService.previewStatement(
         req.user.userId,
-        req.file.buffer,
-        req.file.originalname,
+        fileBuffer,
+        originalName,
         accountId,
       );
 

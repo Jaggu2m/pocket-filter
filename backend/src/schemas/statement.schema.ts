@@ -11,8 +11,15 @@ const importTransactionSchema = z.object({
 });
 
 export const confirmStatementImportSchema = z.object({
-  fileName: z.string().trim().min(1).max(255),
-  fileType: z.enum(['csv', 'pdf']),
+  fileName: z.string().trim().min(1).max(255).default('statement'),
+  fileType: z.enum(['csv', 'pdf', 'image']).default('pdf'),
   accountId: z.string().uuid().nullable().optional(),
-  transactions: z.array(importTransactionSchema).min(1).max(2_000),
-});
+  transactions: z.array(importTransactionSchema).min(1).max(2_000).optional(),
+  selectedTransactions: z.array(importTransactionSchema).min(1).max(2_000).optional(),
+}).refine(
+  (data) => !!(data.transactions?.length || data.selectedTransactions?.length),
+  { message: 'At least one transaction must be provided for import', path: ['transactions'] },
+).transform((data) => ({
+  ...data,
+  transactions: (data.transactions || data.selectedTransactions)!,
+}));

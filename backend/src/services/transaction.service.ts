@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import {
   transactionRepository,
   type CreateTransactionInput,
+  type MoneySourceType,
   type PaginatedTransactions,
   type Transaction,
   type TransactionFilterOptions,
@@ -31,6 +32,76 @@ export class TransactionService {
     );
   }
 
+  private async applyUnspecifiedBalanceDelta(
+    client: PoolClient,
+    userId: string,
+    delta: number,
+  ): Promise<void> {
+    await client.query(
+      'UPDATE users SET unspecified_balance = unspecified_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [delta, userId],
+    );
+  }
+
+  private async applyTransactionBalanceEffect(
+    client: PoolClient,
+    userId: string,
+    tx: {
+      type: string;
+      amount: number;
+      accountId?: string | null;
+      toAccountId?: string | null;
+      sourceType?: MoneySourceType;
+      destinationType?: MoneySourceType;
+    },
+    direction: 1 | -1,
+  ): Promise<void> {
+    const amount = Number(tx.amount);
+    if (!amount || isNaN(amount)) return;
+
+    const effectiveSourceType: MoneySourceType =
+      tx.sourceType || (tx.accountId ? 'ACCOUNT' : 'UNSPECIFIED');
+    const targetAccountId = tx.toAccountId || tx.accountId;
+    const effectiveDestType: MoneySourceType =
+      tx.destinationType ||
+      (tx.type === 'transfer'
+        ? tx.toAccountId
+          ? 'ACCOUNT'
+          : 'UNSPECIFIED'
+        : targetAccountId
+          ? 'ACCOUNT'
+          : 'UNSPECIFIED');
+
+    if (tx.type === 'expense') {
+      // Outflow from source
+      if (effectiveSourceType === 'ACCOUNT' && tx.accountId) {
+        await this.applyBalanceDelta(client, tx.accountId, -amount * direction);
+      } else {
+        await this.applyUnspecifiedBalanceDelta(client, userId, -amount * direction);
+      }
+    } else if (tx.type === 'income') {
+      // Inflow into destination
+      if (effectiveDestType === 'ACCOUNT' && targetAccountId) {
+        await this.applyBalanceDelta(client, targetAccountId, amount * direction);
+      } else {
+        await this.applyUnspecifiedBalanceDelta(client, userId, amount * direction);
+      }
+    } else if (tx.type === 'transfer') {
+      // Outflow from source
+      if (effectiveSourceType === 'ACCOUNT' && tx.accountId) {
+        await this.applyBalanceDelta(client, tx.accountId, -amount * direction);
+      } else {
+        await this.applyUnspecifiedBalanceDelta(client, userId, -amount * direction);
+      }
+      // Inflow into destination
+      if (effectiveDestType === 'ACCOUNT' && tx.toAccountId) {
+        await this.applyBalanceDelta(client, tx.toAccountId, amount * direction);
+      } else {
+        await this.applyUnspecifiedBalanceDelta(client, userId, amount * direction);
+      }
+    }
+  }
+
   async createTransaction(
     userId: string,
     data: Omit<CreateTransactionInput, 'userId'>,
@@ -48,6 +119,13 @@ export class TransactionService {
     }
 
     // 1. Verify account ownership if accounts are specified (accounts are optional)
+    if (data.sourceType === 'ACCOUNT' && !data.accountId) {
+      throw new BadRequestError('Source account ID is required when source type is ACCOUNT');
+    }
+    if (data.destinationType === 'ACCOUNT' && !data.toAccountId && data.type === 'transfer') {
+      throw new BadRequestError('Destination account ID is required when destination type is ACCOUNT');
+    }
+
     if (data.accountId) {
       await this.verifyAccountOwnership(data.accountId, userId);
     }
@@ -55,10 +133,15 @@ export class TransactionService {
       await this.verifyAccountOwnership(data.toAccountId, userId);
     }
 
-    if (data.type === 'transfer' && (!data.accountId || !data.toAccountId)) {
-      throw new BadRequestError(
-        'Transfer transactions require both source and destination accounts',
-      );
+    if (data.type === 'transfer') {
+      const srcIsUnspecified = data.sourceType === 'UNSPECIFIED' || !data.accountId;
+      const dstIsUnspecified = data.destinationType === 'UNSPECIFIED' || !data.toAccountId;
+      if (srcIsUnspecified && dstIsUnspecified) {
+        throw new BadRequestError('Cannot transfer from unspecified balance to unspecified balance');
+      }
+      if (data.accountId && data.toAccountId && data.accountId === data.toAccountId) {
+        throw new BadRequestError('Source and destination accounts cannot be identical');
+      }
     }
 
     // 2. Perform atomic transaction creation + balance sync
@@ -66,17 +149,13 @@ export class TransactionService {
     try {
       await client.query('BEGIN');
 
-      const created = await transactionRepository.createTransaction({ ...categorizedData, userId }, client);
+      const created = await transactionRepository.createTransaction(
+        { ...categorizedData, userId },
+        client,
+      );
 
-      // Sync account balance if account is linked
-      if (data.type === 'expense' && data.accountId) {
-        await this.applyBalanceDelta(client, data.accountId, -data.amount);
-      } else if (data.type === 'income' && data.accountId) {
-        await this.applyBalanceDelta(client, data.accountId, data.amount);
-      } else if (data.type === 'transfer' && data.accountId && data.toAccountId) {
-        await this.applyBalanceDelta(client, data.accountId, -data.amount);
-        await this.applyBalanceDelta(client, data.toAccountId, data.amount);
-      }
+      // Symmetrically apply balance effect
+      await this.applyTransactionBalanceEffect(client, userId, created, 1);
 
       await client.query('COMMIT');
       return created;
@@ -117,7 +196,9 @@ export class TransactionService {
     const nextToAccountId =
       updates.toAccountId !== undefined ? updates.toAccountId : existing.toAccountId;
     const nextType = updates.type !== undefined ? updates.type : existing.type;
-    const nextAmount = updates.amount !== undefined ? updates.amount : existing.amount;
+    const nextSourceType = updates.sourceType !== undefined ? updates.sourceType : existing.sourceType;
+    const nextDestType = updates.destinationType !== undefined ? updates.destinationType : existing.destinationType;
+
     const categorizedUpdates = { ...updates };
     if (
       updates.category === undefined &&
@@ -141,10 +222,15 @@ export class TransactionService {
       await this.verifyAccountOwnership(nextToAccountId, userId);
     }
 
-    if (nextType === 'transfer' && (!nextAccountId || !nextToAccountId)) {
-      throw new BadRequestError(
-        'Transfer transactions require both source and destination accounts',
-      );
+    if (nextType === 'transfer') {
+      const srcIsUnspecified = nextSourceType === 'UNSPECIFIED' || !nextAccountId;
+      const dstIsUnspecified = nextDestType === 'UNSPECIFIED' || !nextToAccountId;
+      if (srcIsUnspecified && dstIsUnspecified) {
+        throw new BadRequestError('Cannot transfer from unspecified balance to unspecified balance');
+      }
+      if (nextAccountId && nextToAccountId && nextAccountId === nextToAccountId) {
+        throw new BadRequestError('Source and destination accounts cannot be identical');
+      }
     }
 
     const client = await pool.connect();
@@ -152,31 +238,22 @@ export class TransactionService {
       await client.query('BEGIN');
 
       // 1. Revert previous transaction impact on balances
-      if (existing.type === 'expense' && existing.accountId) {
-        await this.applyBalanceDelta(client, existing.accountId, existing.amount);
-      } else if (existing.type === 'income' && existing.accountId) {
-        await this.applyBalanceDelta(client, existing.accountId, -existing.amount);
-      } else if (existing.type === 'transfer' && existing.accountId && existing.toAccountId) {
-        await this.applyBalanceDelta(client, existing.accountId, existing.amount);
-        await this.applyBalanceDelta(client, existing.toAccountId, -existing.amount);
-      }
+      await this.applyTransactionBalanceEffect(client, userId, existing, -1);
 
-      // 2. Apply new transaction impact on balances
-      if (nextType === 'expense' && nextAccountId) {
-        await this.applyBalanceDelta(client, nextAccountId, -nextAmount);
-      } else if (nextType === 'income' && nextAccountId) {
-        await this.applyBalanceDelta(client, nextAccountId, nextAmount);
-      } else if (nextType === 'transfer' && nextAccountId && nextToAccountId) {
-        await this.applyBalanceDelta(client, nextAccountId, -nextAmount);
-        await this.applyBalanceDelta(client, nextToAccountId, nextAmount);
-      }
-
-      // 3. Update transaction record
-      const updated = await transactionRepository.updateTransaction(id, userId, categorizedUpdates, client);
+      // 2. Update transaction record
+      const updated = await transactionRepository.updateTransaction(
+        id,
+        userId,
+        categorizedUpdates,
+        client,
+      );
 
       if (!updated) {
         throw new NotFoundError('Transaction not found');
       }
+
+      // 3. Apply new transaction impact on balances
+      await this.applyTransactionBalanceEffect(client, userId, updated, 1);
 
       await client.query('COMMIT');
       return updated;
@@ -198,15 +275,8 @@ export class TransactionService {
     try {
       await client.query('BEGIN');
 
-      // Revert previous transaction impact on account balances
-      if (existing.type === 'expense' && existing.accountId) {
-        await this.applyBalanceDelta(client, existing.accountId, existing.amount);
-      } else if (existing.type === 'income' && existing.accountId) {
-        await this.applyBalanceDelta(client, existing.accountId, -existing.amount);
-      } else if (existing.type === 'transfer' && existing.accountId && existing.toAccountId) {
-        await this.applyBalanceDelta(client, existing.accountId, existing.amount);
-        await this.applyBalanceDelta(client, existing.toAccountId, -existing.amount);
-      }
+      // Revert previous transaction impact on balances
+      await this.applyTransactionBalanceEffect(client, userId, existing, -1);
 
       await transactionRepository.deleteTransaction(id, userId, client);
       await client.query('COMMIT');

@@ -36,18 +36,21 @@ export class PdfStatementParser {
     const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
     const parsed: ParsedRawTransaction[] = [];
 
-    // Regex to match a date at the start of a transaction row (DD/MM/YYYY or DD-MM-YYYY or YYYY-MM-DD)
-    const dateRegex = /^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b/;
+    // Regex to match a date: DD/MM/YYYY, DD-MM-YYYY, DD-MMM-YYYY, DD MMM YYYY, or YYYY-MM-DD
+    const dateRegex = /\b(\d{1,2}[/-](?:\d{1,2}|[a-zA-Z]{3})[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+[a-zA-Z]{3}\s+\d{2,4})\b/i;
     // Regex to match monetary amounts with optional decimals and commas
     const amountRegex = /(\d{1,3}(?:,\d{2,3})*(?:\.\d{2})?)\s*(Cr|Dr)?/gi;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const dateMatch = line.match(dateRegex);
+      // Search for date in the beginning segment of the line
+      const prefix = line.substring(0, 40);
+      const dateMatch = prefix.match(dateRegex);
 
-      if (dateMatch) {
+      if (dateMatch && dateMatch[0]) {
         const rawDate = dateMatch[0];
-        const restOfLine = line.substring(rawDate.length).trim();
+        const dateIndex = line.indexOf(rawDate);
+        const restOfLine = line.substring(dateIndex + rawDate.length).trim();
 
         // Extract all numerical amount candidates from the line
         const amounts: { raw: string; value: number; indicator?: string }[] = [];
@@ -65,12 +68,12 @@ export class PdfStatementParser {
         }
 
         if (amounts.length > 0) {
-          // Take the primary transaction amount (usually the first or largest amount)
+          // Take the primary transaction amount (first or largest amount)
           const chosen = amounts[0];
           const rawDesc = restOfLine.replace(chosen.raw, '').trim();
 
           let type: 'income' | 'expense' = 'expense';
-          if (chosen.indicator === 'CR' || /credit|salary|deposit/i.test(line)) {
+          if (chosen.indicator === 'CR' || /credit|salary|deposit|neft\s*cr|imps\s*cr/i.test(line)) {
             type = 'income';
           }
 

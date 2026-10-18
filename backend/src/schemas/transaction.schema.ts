@@ -2,12 +2,16 @@ import { z } from 'zod';
 
 export const transactionTypeEnum = z.enum(['income', 'expense', 'transfer']);
 
+export const moneySourceTypeEnum = z.enum(['ACCOUNT', 'UNSPECIFIED']);
+
 export const createTransactionSchema = z
   .object({
     type: transactionTypeEnum.default('expense'),
     amount: z.number().positive('Amount must be greater than zero'),
     accountId: z.string().uuid('Invalid account ID').optional().nullable(),
     toAccountId: z.string().uuid('Invalid destination account ID').optional().nullable(),
+    sourceType: moneySourceTypeEnum.optional(),
+    destinationType: moneySourceTypeEnum.optional(),
     currency: z
       .string()
       .trim()
@@ -26,13 +30,36 @@ export const createTransactionSchema = z
   .refine(
     (data) => {
       if (data.type === 'transfer') {
-        return !!data.accountId && !!data.toAccountId && data.accountId !== data.toAccountId;
+        const isSrcAccount = data.sourceType === 'ACCOUNT' || (data.sourceType === undefined && !!data.accountId);
+        const isDstAccount = data.destinationType === 'ACCOUNT' || (data.destinationType === undefined && !!data.toAccountId);
+
+        // Cannot transfer from unspecified to unspecified
+        if (!isSrcAccount && !isDstAccount) {
+          return false;
+        }
+
+        // If source is account, accountId must be present
+        if (isSrcAccount && !data.accountId) {
+          return false;
+        }
+
+        // If destination is account, toAccountId must be present
+        if (isDstAccount && !data.toAccountId) {
+          return false;
+        }
+
+        // If both are accounts, they must be different
+        if (isSrcAccount && isDstAccount && data.accountId === data.toAccountId) {
+          return false;
+        }
+
+        return true;
       }
       return true;
     },
     {
       message:
-        'Transfers require both source and destination accounts to be specified and different',
+        'Transfers require different source and destination money sources (account or general balance)',
       path: ['toAccountId'],
     },
   )
@@ -47,6 +74,8 @@ export const updateTransactionSchema = z
     amount: z.number().positive('Amount must be greater than zero').optional(),
     accountId: z.string().uuid('Invalid account ID').optional().nullable(),
     toAccountId: z.string().uuid('Invalid destination account ID').optional().nullable(),
+    sourceType: moneySourceTypeEnum.optional(),
+    destinationType: moneySourceTypeEnum.optional(),
     currency: z.string().trim().toUpperCase().length(3).optional(),
     category: z.string().trim().min(1).max(100).optional(),
     merchant: z.string().trim().max(150).optional().nullable(),
@@ -58,8 +87,13 @@ export const updateTransactionSchema = z
   })
   .refine(
     (data) => {
-      if (data.type === 'transfer' && data.accountId && data.toAccountId) {
-        return data.accountId !== data.toAccountId;
+      if (data.type === 'transfer') {
+        if (data.accountId && data.toAccountId && data.accountId === data.toAccountId) {
+          return false;
+        }
+        if (data.sourceType === 'UNSPECIFIED' && data.destinationType === 'UNSPECIFIED') {
+          return false;
+        }
       }
       return true;
     },

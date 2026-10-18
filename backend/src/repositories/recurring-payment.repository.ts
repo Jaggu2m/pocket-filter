@@ -130,6 +130,51 @@ export class RecurringPaymentRepository {
     );
     return result.rows[0] ? mapRow(result.rows[0]) : null;
   }
+
+  async createManual(input: {
+    userId: string;
+    merchantName: string;
+    category?: string | null;
+    frequency?: string;
+    amount: number;
+    nextExpectedDate?: string | null;
+  }): Promise<RecurringPaymentRecord> {
+    const merchantNormalized = input.merchantName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const frequency = input.frequency || 'MONTHLY';
+    const result = await pool.query<Row>(
+      `INSERT INTO recurring_payments (
+        user_id, merchant_name, merchant_normalized, category, frequency,
+        average_amount, median_amount, last_payment_date, next_expected_date,
+        confidence_score, transaction_count, status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $6, CURRENT_DATE, $7::date, 1.0, 1, 'CONFIRMED')
+      ON CONFLICT (user_id, merchant_normalized, frequency)
+      DO UPDATE SET
+        merchant_name = EXCLUDED.merchant_name,
+        category = EXCLUDED.category,
+        average_amount = EXCLUDED.average_amount,
+        median_amount = EXCLUDED.median_amount,
+        next_expected_date = EXCLUDED.next_expected_date,
+        status = 'CONFIRMED',
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *`,
+      [
+        input.userId,
+        input.merchantName.trim(),
+        merchantNormalized,
+        input.category || 'EMI',
+        frequency,
+        input.amount,
+        input.nextExpectedDate || null,
+      ],
+    );
+    return mapRow(result.rows[0]);
+  }
+
+  async delete(id: string, userId: string): Promise<boolean> {
+    const result = await pool.query('DELETE FROM recurring_payments WHERE id = $1 AND user_id = $2', [id, userId]);
+    return (result.rowCount ?? 0) > 0;
+  }
 }
 
 export const recurringPaymentRepository = new RecurringPaymentRepository();

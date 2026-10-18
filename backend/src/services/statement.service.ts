@@ -2,6 +2,7 @@ import { pool } from '../config/database.js';
 import { createHash } from 'node:crypto';
 import { csvStatementParser } from './statement-parsers/csv.parser.js';
 import { pdfStatementParser } from './statement-parsers/pdf.parser.js';
+import { imageStatementParser } from './statement-parsers/image.parser.js';
 import { accountRepository } from '../repositories/account.repository.js';
 import { BadRequestError, NotFoundError } from '../errors/app-error.js';
 import { categoryService } from './category.service.js';
@@ -20,7 +21,7 @@ export interface PreviewTransactionItem {
 
 export interface StatementPreviewResult {
   fileName: string;
-  fileType: 'csv' | 'pdf';
+  fileType: 'csv' | 'pdf' | 'image';
   accountId: string | null;
   accountName: string | null;
   totalParsed: number;
@@ -40,7 +41,7 @@ export interface ConfirmTransactionItem {
 
 export interface ConfirmImportInput {
   fileName: string;
-  fileType: 'csv' | 'pdf';
+  fileType: 'csv' | 'pdf' | 'image';
   accountId?: string | null;
   transactions: ConfirmTransactionItem[];
 }
@@ -65,8 +66,18 @@ export class StatementService {
     originalName: string,
     accountId?: string | null,
   ): Promise<StatementPreviewResult> {
-    const ext = originalName.split('.').pop()?.toLowerCase();
-    const fileType: 'csv' | 'pdf' = ext === 'pdf' ? 'pdf' : 'csv';
+    const ext = originalName.toLowerCase().split('.').pop();
+    const isImage =
+      ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'heic'].includes(ext || '') ||
+      fileBuffer.subarray(0, 4).toString('hex').startsWith('ffd8') || // JPEG SOI
+      fileBuffer.subarray(0, 8).toString('hex') === '89504e470d0a1a0a'; // PNG
+
+    const isPdf =
+      !isImage &&
+      (fileBuffer.subarray(0, 1024).toString('binary').includes('%PDF') ||
+        originalName.toLowerCase().endsWith('.pdf'));
+
+    const fileType: 'csv' | 'pdf' | 'image' = isImage ? 'image' : isPdf ? 'pdf' : 'csv';
     this.validateFileSignature(fileBuffer, fileType);
 
     let accountName: string | null = null;
@@ -79,9 +90,11 @@ export class StatementService {
     }
 
     const rawRecords =
-      fileType === 'pdf'
-        ? await pdfStatementParser.parse(fileBuffer)
-        : csvStatementParser.parse(fileBuffer);
+      fileType === 'image'
+        ? await imageStatementParser.parse(fileBuffer)
+        : fileType === 'pdf'
+          ? await pdfStatementParser.parse(fileBuffer)
+          : csvStatementParser.parse(fileBuffer);
 
     if (rawRecords.length === 0) {
       throw new BadRequestError('No valid transactions found in statement');
@@ -156,11 +169,14 @@ export class StatementService {
         const description = item.description || item.merchant || 'Imported statement transaction';
         const importHash = this.createImportHash(new Date(item.date), item.amount, item.type, description);
         const assignment = await categoryService.categorize(userId, item.merchant, description);
+        const sourceType = input.accountId ? 'ACCOUNT' : 'UNSPECIFIED';
+        const destType = input.accountId ? 'ACCOUNT' : 'UNSPECIFIED';
+
         const inserted = await client.query(
           `INSERT INTO transactions (
-            user_id, account_id, type, amount, category, category_confidence, category_source, merchant, description, date, payment_rail, import_hash
+            user_id, account_id, type, amount, category, category_confidence, category_source, merchant, description, date, payment_rail, import_hash, source_type, destination_type
           )
-          VALUES ($1, $2, $3, $4, COALESCE($5, 'General'), $6, $7, $8, $9, $10, 'STATEMENT_IMPORT', $11)
+          VALUES ($1, $2, $3, $4, COALESCE($5, 'General'), $6, $7, $8, $9, $10, 'STATEMENT_IMPORT', $11, $12, $13)
           ON CONFLICT DO NOTHING
           RETURNING id`,
           [
@@ -175,6 +191,8 @@ export class StatementService {
             item.description || null,
             new Date(item.date),
             importHash,
+            sourceType,
+            destType,
           ],
         );
 
@@ -183,17 +201,20 @@ export class StatementService {
           continue;
         }
 
-        if (input.accountId) {
-          balanceDelta += item.type === 'income' ? item.amount : -item.amount;
-        }
+        balanceDelta += item.type === 'income' ? item.amount : -item.amount;
         importedCount++;
       }
 
-      // If linked to an account, sync balance atomically
+      // Sync balance atomically to account or unspecified general balance
       if (input.accountId && balanceDelta !== 0) {
         await client.query(
           `UPDATE accounts SET balance = balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
           [balanceDelta, input.accountId],
+        );
+      } else if (!input.accountId && balanceDelta !== 0) {
+        await client.query(
+          `UPDATE users SET unspecified_balance = unspecified_balance + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [balanceDelta, userId],
         );
       }
 
@@ -250,15 +271,19 @@ export class StatementService {
     }));
   }
 
-  private validateFileSignature(buffer: Buffer, fileType: 'csv' | 'pdf'): void {
+  private validateFileSignature(buffer: Buffer, fileType: 'csv' | 'pdf' | 'image'): void {
     if (buffer.length === 0) {
       throw new BadRequestError('Statement file is empty');
     }
-    if (fileType === 'pdf' && buffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
-      throw new BadRequestError('The uploaded file is not a valid PDF document');
-    }
-    if (fileType === 'csv' && buffer.subarray(0, 1024).includes(0)) {
-      throw new BadRequestError('The uploaded CSV contains binary data');
+    if (fileType === 'pdf') {
+      const header = buffer.subarray(0, 1024).toString('binary');
+      if (!header.includes('%PDF')) {
+        throw new BadRequestError('The uploaded file is not a valid PDF document');
+      }
+    } else if (fileType === 'image') {
+      if (buffer.length < 50) {
+        throw new BadRequestError('The uploaded image file is corrupt or too small');
+      }
     }
   }
 

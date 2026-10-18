@@ -67,10 +67,13 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions (user_id, 
 CREATE INDEX IF NOT EXISTS idx_transactions_user_category ON transactions (user_id, category);
 CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions (account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_to_account_id ON transactions (to_account_id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unspecified_balance NUMERIC(14, 2) NOT NULL DEFAULT 0.00;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS import_hash VARCHAR(64);
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category_confidence NUMERIC(5, 2) NOT NULL DEFAULT 0;
 ALTER TABLE transactions ALTER COLUMN category_confidence TYPE NUMERIC(5, 2) USING category_confidence::NUMERIC(5, 2);
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS category_source VARCHAR(20) NOT NULL DEFAULT 'manual';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) DEFAULT 'UNSPECIFIED';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS destination_type VARCHAR(20) DEFAULT 'UNSPECIFIED';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_user_import_hash
   ON transactions (user_id, import_hash) WHERE import_hash IS NOT NULL;
 
@@ -80,13 +83,16 @@ CREATE TABLE IF NOT EXISTS import_batches (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
   file_name VARCHAR(255) NOT NULL,
-  file_type VARCHAR(20) NOT NULL CHECK (file_type IN ('csv', 'pdf')),
+  file_type VARCHAR(20) NOT NULL CHECK (file_type IN ('csv', 'pdf', 'image')),
   total_rows INT NOT NULL DEFAULT 0,
   imported_rows INT NOT NULL DEFAULT 0,
   duplicate_rows INT NOT NULL DEFAULT 0,
   status VARCHAR(30) NOT NULL DEFAULT 'completed',
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE import_batches DROP CONSTRAINT IF EXISTS import_batches_file_type_check;
+ALTER TABLE import_batches ADD CONSTRAINT import_batches_file_type_check CHECK (file_type IN ('csv', 'pdf', 'image'));
 
 CREATE INDEX IF NOT EXISTS idx_import_batches_user_id ON import_batches (user_id);
 
@@ -215,3 +221,70 @@ INSERT INTO categories (name, kind, icon, color) VALUES
   ('Transfer', 'transfer', 'arrow-right-left', '#64748B'),
   ('General', 'system', 'tag', '#94A3B8')
 ON CONFLICT (name) DO NOTHING;
+
+-- Phase 16: AI Finance Copilot Tables
+CREATE TABLE IF NOT EXISTS copilot_conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL DEFAULT 'Financial Inquiry',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_copilot_conversations_user ON copilot_conversations (user_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS copilot_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES copilot_conversations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL,
+  intent VARCHAR(50),
+  parameters JSONB DEFAULT '{}'::jsonb,
+  engine_result JSONB DEFAULT '{}'::jsonb,
+  decision VARCHAR(50),
+  tradeoffs TEXT[] DEFAULT '{}',
+  alternative JSONB DEFAULT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_copilot_messages_convo ON copilot_messages (conversation_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_copilot_messages_user ON copilot_messages (user_id);
+
+-- ============================================================================
+-- PHASE 17: AI SPENDING INSIGHTS & SMART NOTIFICATIONS
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  severity VARCHAR(20) NOT NULL DEFAULT 'INFO' CHECK (severity IN ('INFO', 'SUCCESS', 'WARNING', 'CRITICAL')),
+  entity_type VARCHAR(50),
+  entity_id VARCHAR(100),
+  metadata JSONB DEFAULT '{}'::jsonb,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications (user_id, is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_type ON notifications (user_id, type, entity_id);
+
+CREATE TABLE IF NOT EXISTS financial_insights (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  insight_type VARCHAR(50) NOT NULL,
+  period VARCHAR(20) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  summary TEXT NOT NULL,
+  structured_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ai_narrative TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_insights_user_period ON financial_insights (user_id, period, insight_type);
+

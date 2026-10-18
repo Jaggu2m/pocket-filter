@@ -141,6 +141,29 @@ export class RecurringPaymentService {
     if (!updated) throw new NotFoundError('Recurring payment not found');
     return updated;
   }
+
+  async create(userId: string, input: {
+    merchantName: string;
+    category?: string | null;
+    frequency?: string;
+    amount: number;
+    nextExpectedDate?: string | null;
+  }) {
+    return recurringPaymentRepository.createManual({
+      userId,
+      merchantName: input.merchantName,
+      category: input.category,
+      frequency: input.frequency,
+      amount: input.amount,
+      nextExpectedDate: input.nextExpectedDate,
+    });
+  }
+
+  async delete(id: string, userId: string) {
+    const deleted = await recurringPaymentRepository.delete(id, userId);
+    if (!deleted) throw new NotFoundError('Recurring payment not found');
+    return { success: true };
+  }
 }
 
 export const recurringPaymentService = new RecurringPaymentService();

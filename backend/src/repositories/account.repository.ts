@@ -49,6 +49,8 @@ export interface UpdateAccountInput {
 }
 
 export interface AccountSummary {
+  unspecifiedBalance: number;
+  totalAccountLiquidBalance: number;
   totalLiquidBalance: number;
   totalCreditDebt: number;
   netWorth: number;
@@ -252,9 +254,22 @@ export class AccountRepository {
   }
 
   async getAccountSummary(userId: string): Promise<AccountSummary> {
-    const accounts = await this.findByUserId(userId, { includeArchived: false });
+    const [accounts, userResult] = await Promise.all([
+      this.findByUserId(userId, { includeArchived: false }),
+      pool.query<{ unspecified_balance: string }>(
+        'SELECT unspecified_balance FROM users WHERE id = $1',
+        [userId],
+      ),
+    ]);
+
+    const rawUnspecified = userResult.rows[0]?.unspecified_balance;
+    const unspecifiedBalance = rawUnspecified !== undefined && rawUnspecified !== null
+      ? parseFloat(rawUnspecified) || 0
+      : 0;
 
     const summary: AccountSummary = {
+      unspecifiedBalance: Math.round(unspecifiedBalance * 100) / 100,
+      totalAccountLiquidBalance: 0,
       totalLiquidBalance: 0,
       totalCreditDebt: 0,
       netWorth: 0,
@@ -278,18 +293,40 @@ export class AccountRepository {
       if (acc.type === 'credit_card') {
         summary.totalCreditDebt += acc.balance;
       } else {
-        summary.totalLiquidBalance += acc.balance;
+        summary.totalAccountLiquidBalance += acc.balance;
       }
     }
 
+    summary.totalLiquidBalance = summary.totalAccountLiquidBalance + summary.unspecifiedBalance;
     summary.netWorth = summary.totalLiquidBalance - summary.totalCreditDebt;
 
     // Round values to 2 decimals
+    summary.totalAccountLiquidBalance = Math.round(summary.totalAccountLiquidBalance * 100) / 100;
     summary.totalLiquidBalance = Math.round(summary.totalLiquidBalance * 100) / 100;
     summary.totalCreditDebt = Math.round(summary.totalCreditDebt * 100) / 100;
     summary.netWorth = Math.round(summary.netWorth * 100) / 100;
 
     return summary;
+  }
+
+  async getUnspecifiedBalance(userId: string): Promise<number> {
+    const result = await pool.query<{ unspecified_balance: string }>(
+      'SELECT unspecified_balance FROM users WHERE id = $1',
+      [userId],
+    );
+    return result.rows[0]?.unspecified_balance
+      ? parseFloat(result.rows[0].unspecified_balance) || 0
+      : 0;
+  }
+
+  async setUnspecifiedBalance(userId: string, balance: number): Promise<number> {
+    const result = await pool.query<{ unspecified_balance: string }>(
+      'UPDATE users SET unspecified_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING unspecified_balance',
+      [balance, userId],
+    );
+    return result.rows[0]?.unspecified_balance
+      ? parseFloat(result.rows[0].unspecified_balance) || 0
+      : 0;
   }
 }
 

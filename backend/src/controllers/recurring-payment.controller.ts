@@ -46,6 +46,23 @@ export class RecurringPaymentController {
       sendSuccess(res, { recurringPayment: payment, recurring_payment: payment }, 'Recurring payment dismissed successfully');
     } catch (error) { next(error); }
   }
+
+  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const payment = await recurringPaymentService.create(req.user.userId, req.body);
+      sendSuccess(res, { recurringPayment: payment, recurring_payment: payment }, 'Recurring payment created successfully', 201);
+    } catch (error) { next(error); }
+  }
+
+  async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new UnauthorizedError();
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      await recurringPaymentService.delete(id, req.user.userId);
+      sendSuccess(res, null, 'Recurring payment deleted successfully');
+    } catch (error) { next(error); }
+  }
 }
 
 export const recurringPaymentController = new RecurringPaymentController();

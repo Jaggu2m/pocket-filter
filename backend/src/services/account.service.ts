@@ -91,6 +91,14 @@ export class AccountService {
   async getAccountSummary(userId: string): Promise<AccountSummary> {
     return accountRepository.getAccountSummary(userId);
   }
+
+  async getUnspecifiedBalance(userId: string): Promise<number> {
+    return accountRepository.getUnspecifiedBalance(userId);
+  }
+
+  async setUnspecifiedBalance(userId: string, balance: number): Promise<number> {
+    return accountRepository.setUnspecifiedBalance(userId, balance);
+  }
 }
 
 export const accountService = new AccountService();

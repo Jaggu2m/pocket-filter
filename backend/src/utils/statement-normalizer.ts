@@ -80,6 +80,22 @@ export function parseStatementDate(raw: string): Date {
     if (!isNaN(d.getTime())) return d;
   }
 
+  // Check DD-MMM-YYYY or DD/MMM/YYYY (e.g. 02-Oct-2026, 15/Nov/2026)
+  const monthMap: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+  const dMmmMatch = trimmed.match(/^(\d{1,2})[/-]([a-zA-Z]{3})[/-](\d{2,4})/);
+  if (dMmmMatch) {
+    const day = parseInt(dMmmMatch[1], 10);
+    const mStr = dMmmMatch[2].toLowerCase();
+    const month = monthMap[mStr] !== undefined ? monthMap[mStr] : 0;
+    let year = parseInt(dMmmMatch[3], 10);
+    if (year < 100) year += 2000;
+    const d = new Date(Date.UTC(year, month, day));
+    if (!isNaN(d.getTime())) return d;
+  }
+
   // Check DD/MM/YYYY or DD-MM-YYYY
   const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
   if (dmyMatch) {

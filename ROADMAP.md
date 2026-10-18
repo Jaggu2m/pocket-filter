@@ -45,9 +45,9 @@ PHASE 14: React Native Mobile Application
     ↓
 PHASE 15: Long-Term Bucket List Goals
     ↓
-PHASE 16: AI Finance Copilot (Conversational Engine)
+PHASE 16: AI Finance Copilot (Conversational Engine)     [ COMPLETED ]
     ↓
-PHASE 17: AI Spending Insights & Smart Notifications
+PHASE 17: AI Spending Insights & Smart Notifications    [ COMPLETED ]
     ↓
 PHASE 18: Security Hardening, Testing & Production Infra
 ───────────────────────────────────────────────────────────────────────
@@ -408,35 +408,43 @@ Bank Statement (PDF / CSV)
 
 ---
 
-## Phase 16 — AI Finance Copilot (Conversational Engine)
+## Phase 16 — AI Finance Copilot (Conversational Engine)  [ COMPLETED ]
 **Goal:** Natural language conversational interface sitting above the deterministic calculation engine.
-- [ ] Conversational chat endpoint
-- [ ] Intent detection & parameter extraction:
-  - [ ] Transaction queries
-  - [ ] Spending diagnostics
-  - [ ] Budget queries
-  - [ ] Goal progress queries
-  - [ ] Purchase simulations ("Can I buy a ₹40,000 phone next month?")
-- [ ] Deterministic engine orchestration
-- [ ] Natural language explanation generation
-- [ ] Trade-off advice formatting
-- [ ] Regulatory safety guardrails
+- [x] Conversational chat endpoint (`POST /api/copilot/chat`)
+- [x] Intent detection & parameter extraction (Groq/Gemini LLM with deterministic regex fallback):
+  - [x] Transaction queries
+  - [x] Spending diagnostics
+  - [x] Budget queries
+  - [x] Goal progress queries
+  - [x] Purchase simulations ("Can I buy a ₹40,000 phone next month?")
+  - [x] Debt & EMI queries
+  - [x] Account balance queries
+  - [x] Income queries
+- [x] Deterministic engine orchestration (`CopilotService` routes strictly to existing deterministic services)
+- [x] Natural language explanation generation with verified factual assertions
+- [x] Trade-off advice formatting & alternative recommendation cards
+- [x] Regulatory safety guardrails & mandatory non-advisory disclaimer
+- [x] Full PostgreSQL conversation persistence & thread retrieval
+- [x] React Native Copilot chat screen with typing animation, intent tags, suggestion chips, and history drawer
 
 ---
 
-## Phase 17 — AI Spending Insights & Smart Notifications
+## Phase 17 — AI Spending Insights & Smart Notifications  [ COMPLETED ]
 **Goal:** Proactive financial intelligence engine.
 ### AI Spending Insights
-- [ ] Automated causal diagnostics for spending shifts
-- [ ] Synthesize macro spending trends and micro anomalies
-- [ ] End-of-month retrospective narrative generation
+- [x] Automated causal diagnostics for spending shifts (3-month baseline, category deviations, merchant contributors)
+- [x] Synthesize macro spending trends and micro anomalies into human-readable narratives
+- [x] End-of-month retrospective narrative generation with performance metrics, achievements, and suggested focus
 
 ### Smart Notifications
-- [ ] Budget pace breach warnings
-- [ ] Goal health risk downgrade notifications
-- [ ] Upcoming subscription & bill reminders
-- [ ] Unusual spending / anomaly alerts
-- [ ] Milestone completion celebrations
+- [x] Budget pace breach & over-budget warnings (`BUDGET_PACE_BREACH`, `BUDGET_EXCEEDED`)
+- [x] Goal health risk downgrade notifications (`GOAL_HEALTH_DOWNGRADE`)
+- [x] Upcoming subscription & bill reminders (`BILL_UPCOMING`, `SUBSCRIPTION_UPCOMING`)
+- [x] Unusual spending / anomaly alerts (`SPENDING_ANOMALY`)
+- [x] Milestone completion celebrations (`GOAL_MILESTONE`, `SAVINGS_MILESTONE`, `DEBT_MILESTONE`)
+- [x] Multi-level Redis & DB deduplication engine with cooldowns
+- [x] Mobile Notifications screen (`mobile/app/notifications.tsx`) & header notification bell with unread badge
+- [x] Mobile Insights & Retrospective screen (`mobile/app/insights.tsx`)
 
 ---
 

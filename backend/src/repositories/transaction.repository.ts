@@ -2,12 +2,15 @@ import type { PoolClient } from 'pg';
 import { pool } from '../config/database.js';
 
 export type TransactionType = 'income' | 'expense' | 'transfer';
+export type MoneySourceType = 'ACCOUNT' | 'UNSPECIFIED';
 
 export interface Transaction {
   id: string;
   userId: string;
   accountId: string | null;
   toAccountId: string | null;
+  sourceType: MoneySourceType;
+  destinationType: MoneySourceType;
   accountName?: string | null;
   toAccountName?: string | null;
   type: TransactionType;
@@ -30,6 +33,8 @@ export interface CreateTransactionInput {
   userId: string;
   accountId?: string | null;
   toAccountId?: string | null;
+  sourceType?: MoneySourceType;
+  destinationType?: MoneySourceType;
   type: TransactionType;
   amount: number;
   currency?: string;
@@ -47,6 +52,8 @@ export interface CreateTransactionInput {
 export interface UpdateTransactionInput {
   accountId?: string | null;
   toAccountId?: string | null;
+  sourceType?: MoneySourceType;
+  destinationType?: MoneySourceType;
   type?: TransactionType;
   amount?: number;
   currency?: string;
@@ -100,6 +107,8 @@ interface TransactionRow {
   payment_rail: string | null;
   is_recurring: boolean;
   tags: string[] | null;
+  source_type?: string | null;
+  destination_type?: string | null;
   created_at: Date;
   updated_at: Date;
   full_count?: string;
@@ -111,6 +120,8 @@ function mapRowToTransaction(row: TransactionRow): Transaction {
     userId: row.user_id,
     accountId: row.account_id,
     toAccountId: row.to_account_id,
+    sourceType: (row.source_type as MoneySourceType) || (row.account_id ? 'ACCOUNT' : 'UNSPECIFIED'),
+    destinationType: (row.destination_type as MoneySourceType) || (row.to_account_id ? 'ACCOUNT' : (row.type === 'income' && row.account_id ? 'ACCOUNT' : 'UNSPECIFIED')),
     accountName: row.account_name ?? null,
     toAccountName: row.to_account_name ?? null,
     type: row.type,
@@ -136,13 +147,20 @@ export class TransactionRepository {
     client?: PoolClient,
   ): Promise<Transaction> {
     const runner = client || pool;
+    const sourceType = input.sourceType || (input.accountId ? 'ACCOUNT' : 'UNSPECIFIED');
+    const destinationType = input.destinationType || (
+      input.type === 'transfer'
+        ? (input.toAccountId ? 'ACCOUNT' : 'UNSPECIFIED')
+        : (input.type === 'income' && (input.toAccountId || input.accountId) ? 'ACCOUNT' : 'UNSPECIFIED')
+    );
+
     const query = `
       INSERT INTO transactions (
         user_id, account_id, to_account_id, type, amount,
         currency, category, category_confidence, category_source, merchant, description, date,
-        payment_rail, is_recurring, tags
+        payment_rail, is_recurring, tags, source_type, destination_type
       )
-      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'INR'), COALESCE($7, 'General'), COALESCE($8, 0::numeric), COALESCE($9, 'manual'), $10, $11, COALESCE($12, CURRENT_TIMESTAMP), $13, COALESCE($14, FALSE), $15::text[])
+      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'INR'), COALESCE($7, 'General'), COALESCE($8, 0::numeric), COALESCE($9, 'manual'), $10, $11, COALESCE($12, CURRENT_TIMESTAMP), $13, COALESCE($14, FALSE), $15::text[], $16, $17)
       RETURNING *;
     `;
 
@@ -162,6 +180,8 @@ export class TransactionRepository {
       input.paymentRail ? input.paymentRail.trim() : null,
       input.isRecurring ?? false,
       input.tags || [],
+      sourceType,
+      destinationType,
     ];
 
     const result = await runner.query<TransactionRow>(query, values);
@@ -278,6 +298,16 @@ export class TransactionRepository {
     if (updates.toAccountId !== undefined) {
       fields.push(`to_account_id = $${paramIndex++}`);
       values.push(updates.toAccountId || null);
+    }
+
+    if (updates.sourceType !== undefined) {
+      fields.push(`source_type = $${paramIndex++}`);
+      values.push(updates.sourceType);
+    }
+
+    if (updates.destinationType !== undefined) {
+      fields.push(`destination_type = $${paramIndex++}`);
+      values.push(updates.destinationType);
     }
 
     if (updates.type !== undefined) {

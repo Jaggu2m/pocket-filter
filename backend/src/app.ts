@@ -15,6 +15,11 @@ import aiRouter from './routes/ai.routes.js';
 import forecastRouter from './routes/forecast.routes.js';
 import anomalyRouter from './routes/anomaly.routes.js';
 import simulationRouter from './routes/simulation.routes.js';
+import copilotRouter from './modules/copilot/copilot.routes.js';
+import notificationRouter from './modules/notifications/notification.routes.js';
+import insightRouter from './modules/insights/insight.routes.js';
+import { insightController } from './modules/insights/insight.controller.js';
+import { authenticate } from './middlewares/auth.middleware.js';
 import { requestLogger } from './middlewares/logger.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 
@@ -22,8 +27,8 @@ const app = express();
 
 // Security and utility middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(requestLogger);
 
 // Mount API routes
@@ -35,7 +40,6 @@ app.use('/api/statement', statementRouter);
 app.use('/api/categories', categoryRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/analytics', dashboardRouter);
-app.use('/api/insights', dashboardRouter);
 app.use('/api/budgets', budgetRouter);
 app.use('/api/v1/budgets', budgetRouter);
 app.use('/api/goals', goalRouter);
@@ -61,6 +65,16 @@ app.use('/api/what-if', simulationRouter);
 app.use('/api/scenarios', simulationRouter);
 app.use('/api/v1/simulations', simulationRouter);
 app.use('/api/v1/simulate', simulationRouter);
+app.use('/api/copilot', copilotRouter);
+app.use('/api/v1/copilot', copilotRouter);
+
+// Phase 17: Smart Notifications & Financial Insights
+app.use('/api/notifications', notificationRouter);
+app.use('/api/v1/notifications', notificationRouter);
+app.use('/api/insights', insightRouter);
+app.use('/api/v1/insights', insightRouter);
+app.get('/api/spending/diagnostics', authenticate, (req, res, next) => insightController.getDiagnostics(req, res).catch(next));
+app.get('/api/financial-review/monthly', authenticate, (req, res, next) => insightController.getMonthlyReview(req, res).catch(next));
 
 // 404 Route Handler
 app.use((req: Request, res: Response) => {

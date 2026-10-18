@@ -104,6 +104,25 @@ export class AccountController {
       next(error);
     }
   }
+
+  async updateUnspecifiedBalance(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new UnauthorizedError();
+      }
+
+      const balance = parseFloat(req.body.balance);
+      if (isNaN(balance)) {
+        res.status(400).json({ success: false, message: 'Valid balance is required' });
+        return;
+      }
+
+      const updated = await accountService.setUnspecifiedBalance(req.user.userId, balance);
+      sendSuccess(res, { unspecifiedBalance: updated }, 'Unspecified balance updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const accountController = new AccountController();

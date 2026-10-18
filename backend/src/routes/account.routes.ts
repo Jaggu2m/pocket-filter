@@ -25,8 +25,9 @@ accountRouter.get(
   accountController.listAccounts,
 );
 
-// Note: Summary route must precede parameterized /:id route
+// Note: Summary and unspecified-balance routes must precede parameterized /:id route
 accountRouter.get('/summary', accountController.getSummary);
+accountRouter.patch('/unspecified-balance', accountController.updateUnspecifiedBalance);
 
 accountRouter.get('/:id', accountController.getAccountById);
 

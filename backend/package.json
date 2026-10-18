@@ -25,7 +25,9 @@
     "test:phase10": "tsx src/test-phase10.ts",
     "test:phase11": "tsx src/test-phase11.ts",
     "test:phase12": "tsx src/test-phase12.ts",
-    "test:phase13": "tsx src/test-phase13.ts"
+    "test:phase13": "tsx src/test-phase13.ts",
+    "test:phase16": "tsx src/test-phase16.ts",
+    "test:phase17": "tsx src/test-phase17-live.ts"
   },
   "keywords": [],
   "author": "",
@@ -59,6 +61,7 @@
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.1",
     "redis": "^6.3.0",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.6.7"
   }
 }
